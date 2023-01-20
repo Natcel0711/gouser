@@ -21,7 +21,9 @@ func SetupRouters(r *chi.Mux) error {
 	r.Route("/users", func(r chi.Router) {
 		r.Get("/", handlers.GetAllUsers(db))
 		r.Get("/{id}", handlers.GetUserByID(db))
+		r.Get("/BySession/{sessionid}", handlers.GetUserBySession(db))
 		r.Get("/ByEmail/{email}", handlers.GetUserByEmail(db))
+		r.Post("/Session/", handlers.CreateSessionID(db))
 		r.Post("/", handlers.CreateUser(db))
 		r.Put("/", handlers.UpdateUser(db))
 	})

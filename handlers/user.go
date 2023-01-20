@@ -8,51 +8,37 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/Natcel0711/gouser/models"
 	"github.com/go-chi/chi/v5"
+	"github.com/google/uuid"
 )
-
-type User struct {
-	Id         int       `json:"id"`
-	Name       string    `json:"name"`
-	Email      string    `json:"email"`
-	Password   string    `json:"password"`
-	Created_at time.Time `json:"created_at"`
-	Updated_at time.Time `json:"updated_at"`
-}
-
-type CreatedUser struct {
-	Name     string `json:"name"`
-	Email    string `json:"email"`
-	Password string `json:"password"`
-}
 
 func GetAllUsers(db *sql.DB) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		GetSt := "SELECT id,name,email,password,created_at,updated_at FROM public.users"
 		rows, err := db.Query(GetSt)
 		if err != nil {
-			w.WriteHeader(422)
-			w.Write([]byte("error getting users: " + err.Error()))
+			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
 		defer rows.Close()
-		var users []User
+		var users []models.User
 		for rows.Next() {
-			var user User
+			var user models.User
 			err := rows.Scan(&user.Id, &user.Name, &user.Email, &user.Password, &user.Created_at, &user.Updated_at)
 			if err != nil {
-				w.Write([]byte("Error getting users " + err.Error()))
+				http.Error(w, err.Error(), http.StatusInternalServerError)
 				return
 			}
 			users = append(users, user)
 		}
 		if err = rows.Err(); err != nil {
-			w.Write([]byte("Error on rows"))
+			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
 		j, err := json.Marshal(users)
 		if err != nil {
-			w.Write([]byte("Error encoding users to JSON"))
+			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
 		w.Write([]byte(j))
@@ -67,7 +53,7 @@ func GetUserByID(db *sql.DB) http.HandlerFunc {
 			return
 		}
 		row := db.QueryRow("SELECT id, name, email, password, created_at, updated_at FROM public.users WHERE id=$1", id)
-		var user User
+		var user models.User
 		switch err := row.Scan(&user.Id, &user.Name, &user.Email, &user.Password, &user.Created_at, &user.Updated_at); err {
 		case sql.ErrNoRows:
 			w.Write([]byte("No rows were returned"))
@@ -80,6 +66,31 @@ func GetUserByID(db *sql.DB) http.HandlerFunc {
 			w.Write([]byte(j))
 		default:
 			w.Write([]byte(fmt.Sprintf("Error while mapping user: %v", err)))
+		}
+	}
+}
+
+func GetUserBySession(db *sql.DB) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		sessionid := chi.URLParam(r, "sessionid")
+		if sessionid == "" {
+			JSONError(w, "session id not available", 500)
+			return
+		}
+		row := db.QueryRow("SELECT u.id, u.name, u.email, u.password, u.created_at, u.updated_at FROM public.users u INNER JOIN public.sessions s ON u.id = s.userid WHERE s.sessionid=$1", sessionid)
+		var user models.User
+		switch err := row.Scan(&user.Id, &user.Name, &user.Email, &user.Password, &user.Created_at, &user.Updated_at); err {
+		case sql.ErrNoRows:
+			JSONError(w, "no rows", 500)
+		case nil:
+			j, err := json.Marshal(user)
+			if err != nil {
+				JSONError(w, "error turning to json", 500)
+				return
+			}
+			w.Write([]byte(j))
+		default:
+			JSONError(w, "error while mapping", 500)
 		}
 	}
 }
@@ -88,26 +99,27 @@ func GetUserByEmail(db *sql.DB) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		email := chi.URLParam(r, "email")
 		row := db.QueryRow("SELECT id, name, email, password, created_at, updated_at FROM public.users WHERE email=$1", email)
-		var user User
+		fmt.Println(row)
+		var user models.User
 		switch err := row.Scan(&user.Id, &user.Name, &user.Email, &user.Password, &user.Created_at, &user.Updated_at); err {
 		case sql.ErrNoRows:
-			w.Write([]byte("No rows were returned"))
+			JSONError(w, "No users with that email", 404)
 		case nil:
 			j, err := json.Marshal(user)
 			if err != nil {
-				w.Write([]byte("error turning to json"))
+				JSONError(w, "error turning to json", 500)
 				return
 			}
 			w.Write([]byte(j))
 		default:
-			w.Write([]byte(fmt.Sprintf("Error while mapping user: %v", err)))
+			JSONError(w, "error while mapping user", 500)
 		}
 	}
 }
 
 func CreateUser(db *sql.DB) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		var user CreatedUser
+		var user models.User
 		err := json.NewDecoder(r.Body).Decode(&user)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
@@ -125,14 +137,14 @@ func CreateUser(db *sql.DB) http.HandlerFunc {
 
 func UpdateUser(db *sql.DB) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		var user User
+		var user models.User
 		err := json.NewDecoder(r.Body).Decode(&user)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
 		row := db.QueryRow("SELECT id, name, email, password FROM public.users WHERE id=$1", user.Id)
-		var foundUser User
+		var foundUser models.User
 		switch err := row.Scan(&foundUser.Id, &foundUser.Name, &foundUser.Email, &foundUser.Password); err {
 		case sql.ErrNoRows:
 			w.Write([]byte("No user exists"))
@@ -146,4 +158,34 @@ func UpdateUser(db *sql.DB) http.HandlerFunc {
 			w.Write([]byte(fmt.Sprintf("Error while mapping user: %v", err)))
 		}
 	}
+}
+
+func CreateSessionID(db *sql.DB) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var user models.User
+		var id int
+		err := json.NewDecoder(r.Body).Decode(&user)
+		if err != nil {
+			JSONError(w, "error while encoding json", 500)
+		}
+		sqlStatement := `DELETE FROM public.sessions WHERE userid = $1;`
+		_, err = db.Exec(sqlStatement, user.Id)
+		if err != nil {
+			JSONError(w, err.Error(), 500)
+		}
+		sessionid := uuid.New()
+		err = db.QueryRow(`INSERT INTO public.sessions (sessionid, userid) VALUES($1,$2) returning id`, sessionid, user.Id).Scan(&id)
+		if err != nil {
+			JSONError(w, "error inserting session", 500)
+			return
+		}
+		fmt.Println("Succeded:", sessionid)
+		w.Write([]byte(fmt.Sprintf("{\"ID\":\"%s\", \"Success\": %t}", sessionid.String(), true)))
+	}
+}
+
+func JSONError(w http.ResponseWriter, message string, code int) {
+	w.WriteHeader(code)
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	w.Write([]byte(fmt.Sprintf("{\"error\": true, \"message\":\"%s\"}", message)))
 }
