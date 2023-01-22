@@ -4,9 +4,9 @@ import (
 	"errors"
 
 	"github.com/Natcel0711/gouser/config"
+	"github.com/Natcel0711/gouser/middlewares"
 	"github.com/Natcel0711/gouser/router"
 	"github.com/go-chi/chi/v5"
-	"github.com/go-chi/chi/v5/middleware"
 )
 
 func SetupApp() error {
@@ -15,7 +15,7 @@ func SetupApp() error {
 		return err
 	}
 	r := chi.NewRouter()
-	r.Use(middleware.Logger)
+	middlewares.UseMiddlewares(r)
 	err = router.SetupRouters(r)
 	if err != nil {
 		return errors.New("error setting up router")
