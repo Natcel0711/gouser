@@ -163,15 +163,15 @@ func UpdateUser(db *sql.DB) http.HandlerFunc {
 		var foundUser models.User
 		switch err := row.Scan(&foundUser.Id, &foundUser.Name, &foundUser.Email, &foundUser.Password); err {
 		case sql.ErrNoRows:
-			_, _ = w.Write([]byte("No user exists"))
+			JSONError(w, "no user exists", http.StatusBadRequest)
 		case nil:
 			row := db.QueryRow("UPDATE public.users SET name = $1, password = $2, email=$3 WHERE id = $4", user.Name, user.Password, user.Email, user.Id)
 			if row.Err() != nil {
-				_, err = w.Write([]byte(fmt.Sprintf("Error updating user: %v", err)))
+				JSONError(w, err.Error(), http.StatusBadRequest)
 			}
-			_, err = w.Write([]byte(fmt.Sprintf("{\"Success\": %t}", true)))
+			JSONError(w, err.Error(), http.StatusBadRequest)
 		default:
-			_, err = w.Write([]byte(fmt.Sprintf("Error while mapping user: %v", err)))
+			JSONError(w, err.Error(), http.StatusInternalServerError)
 		}
 	}
 }
