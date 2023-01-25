@@ -15,13 +15,17 @@ import (
 
 func GetAllUsers(db *sql.DB) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		GetSt := "SELECT id,name,email,password,created_at,updated_at FROM public.users"
-		rows, err := db.Query(GetSt)
+		rows, err := db.Query("SELECT id,name,email,password,created_at,updated_at FROM public.users")
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		defer rows.Close()
+		defer func(rows *sql.Rows) {
+			err := rows.Close()
+			if err != nil {
+
+			}
+		}(rows)
 		var users []models.User
 		for rows.Next() {
 			var user models.User
@@ -49,23 +53,23 @@ func GetUserByID(db *sql.DB) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		id, err := strconv.Atoi(chi.URLParam(r, "id"))
 		if err != nil {
-			_, _ = w.Write([]byte("ID is not a number"))
+			JSONError(w, err.Error(), http.StatusBadRequest)
 			return
 		}
 		row := db.QueryRow("SELECT id, name, email, password, created_at, updated_at FROM public.users WHERE id=$1", id)
 		var user models.User
 		switch err := row.Scan(&user.Id, &user.Name, &user.Email, &user.Password, &user.Created_at, &user.Updated_at); err {
 		case sql.ErrNoRows:
-			_, _ = w.Write([]byte("No rows were returned"))
+			JSONError(w, "No rows returned", http.StatusFound)
 		case nil:
 			j, err := json.Marshal(user)
 			if err != nil {
-				_, _ = w.Write([]byte("error turning to json"))
+				JSONError(w, err.Error(), http.StatusInternalServerError)
 				return
 			}
 			_, _ = w.Write(j)
 		default:
-			_, _ = w.Write([]byte(fmt.Sprintf("Error while mapping user: %v", err)))
+			JSONError(w, err.Error(), http.StatusInternalServerError)
 		}
 	}
 }
