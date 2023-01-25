@@ -41,7 +41,7 @@ func GetAllUsers(db *sql.DB) http.HandlerFunc {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		w.Write([]byte(j))
+		_, _ = w.Write(j)
 	}
 }
 
@@ -49,23 +49,23 @@ func GetUserByID(db *sql.DB) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		id, err := strconv.Atoi(chi.URLParam(r, "id"))
 		if err != nil {
-			w.Write([]byte("ID is not a number"))
+			_, _ = w.Write([]byte("ID is not a number"))
 			return
 		}
 		row := db.QueryRow("SELECT id, name, email, password, created_at, updated_at FROM public.users WHERE id=$1", id)
 		var user models.User
 		switch err := row.Scan(&user.Id, &user.Name, &user.Email, &user.Password, &user.Created_at, &user.Updated_at); err {
 		case sql.ErrNoRows:
-			w.Write([]byte("No rows were returned"))
+			_, _ = w.Write([]byte("No rows were returned"))
 		case nil:
 			j, err := json.Marshal(user)
 			if err != nil {
-				w.Write([]byte("error turning to json"))
+				_, _ = w.Write([]byte("error turning to json"))
 				return
 			}
-			w.Write([]byte(j))
+			_, _ = w.Write(j)
 		default:
-			w.Write([]byte(fmt.Sprintf("Error while mapping user: %v", err)))
+			_, _ = w.Write([]byte(fmt.Sprintf("Error while mapping user: %v", err)))
 		}
 	}
 }
@@ -88,7 +88,11 @@ func GetUserBySession(db *sql.DB) http.HandlerFunc {
 				JSONError(w, "error turning to json", 500)
 				return
 			}
-			w.Write([]byte(j))
+			_, err = w.Write(j)
+			if err != nil {
+				JSONError(w, "error writing to response", 500)
+				return
+			}
 		default:
 			JSONError(w, "error while mapping", 500)
 		}
@@ -110,7 +114,11 @@ func GetUserByEmail(db *sql.DB) http.HandlerFunc {
 				JSONError(w, "error turning to json", 500)
 				return
 			}
-			w.Write([]byte(j))
+			_, err = w.Write(j)
+			if err != nil {
+				JSONError(w, "error writing to response", 500)
+				return
+			}
 		default:
 			JSONError(w, "error while mapping user", 500)
 		}
@@ -131,7 +139,11 @@ func CreateUser(db *sql.DB) http.HandlerFunc {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		w.Write([]byte(fmt.Sprintf("{\"ID\":%d, \"Success\": %t}", id, true)))
+		_, err = w.Write([]byte(fmt.Sprintf("{\"ID\":%d, \"Success\": %t}", id, true)))
+		if err != nil {
+			JSONError(w, "error writing to response", http.StatusBadRequest)
+			return
+		}
 	}
 }
 
@@ -147,15 +159,15 @@ func UpdateUser(db *sql.DB) http.HandlerFunc {
 		var foundUser models.User
 		switch err := row.Scan(&foundUser.Id, &foundUser.Name, &foundUser.Email, &foundUser.Password); err {
 		case sql.ErrNoRows:
-			w.Write([]byte("No user exists"))
+			_, _ = w.Write([]byte("No user exists"))
 		case nil:
 			row := db.QueryRow("UPDATE public.users SET name = $1, password = $2, email=$3 WHERE id = $4", user.Name, user.Password, user.Email, user.Id)
 			if row.Err() != nil {
-				w.Write([]byte(fmt.Sprintf("Error updating user: %v", err)))
+				_, err = w.Write([]byte(fmt.Sprintf("Error updating user: %v", err)))
 			}
-			w.Write([]byte(fmt.Sprintf("{\"Success\": %t}", true)))
+			_, err = w.Write([]byte(fmt.Sprintf("{\"Success\": %t}", true)))
 		default:
-			w.Write([]byte(fmt.Sprintf("Error while mapping user: %v", err)))
+			_, err = w.Write([]byte(fmt.Sprintf("Error while mapping user: %v", err)))
 		}
 	}
 }
@@ -172,20 +184,20 @@ func CreateSessionID(db *sql.DB) http.HandlerFunc {
 		_, err = db.Exec(sqlStatement, user.Id)
 		if err != nil {
 			JSONError(w, err.Error(), 500)
+			return
 		}
-		sessionid := uuid.New()
-		err = db.QueryRow(`INSERT INTO public.sessions (sessionid, userid) VALUES($1,$2) returning id`, sessionid, user.Id).Scan(&id)
+		session := uuid.New()
+		err = db.QueryRow(`INSERT INTO public.sessions (sessionid, userid) VALUES($1,$2) returning id`, session, user.Id).Scan(&id)
 		if err != nil {
 			JSONError(w, "error inserting session", 500)
 			return
 		}
-		fmt.Println("Succeded:", sessionid)
-		w.Write([]byte(fmt.Sprintf("{\"ID\":\"%s\", \"Success\": %t}", sessionid.String(), true)))
+		_, err = w.Write([]byte(fmt.Sprintf("{\"ID\":\"%s\", \"Success\": %t}", session.String(), true)))
 	}
 }
 
 func JSONError(w http.ResponseWriter, message string, code int) {
 	w.WriteHeader(code)
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
-	w.Write([]byte(fmt.Sprintf("{\"error\": true, \"message\":\"%s\"}", message)))
+	_, _ = w.Write([]byte(fmt.Sprintf("{\"error\": true, \"message\":\"%s\"}", message)))
 }
