@@ -4,6 +4,7 @@ import (
 	"errors"
 	"log"
 	"net/http"
+	"os"
 
 	"github.com/Natcel0711/gouser/database"
 	"github.com/Natcel0711/gouser/handlers"
@@ -27,8 +28,11 @@ func SetupRouters(r *chi.Mux) error {
 		r.Post("/", handlers.CreateUser(db))
 		r.Put("/", handlers.UpdateUser(db))
 	})
-
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = "3000"
+	}
 	log.Println("listening on localhost:8080")
-	http.ListenAndServe(":8080", r)
+	http.ListenAndServe("0.0.0.0:"+port, r)
 	return nil
 }
