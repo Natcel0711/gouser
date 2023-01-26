@@ -32,6 +32,7 @@ func SetupRouters(r *chi.Mux) error {
 	if port == "" {
 		port = "3000"
 	}
+	log.Println("HELLO, ENVs " + os.Getenv("TEST_ENV"))
 	log.Println("listening on port: " + port)
 	http.ListenAndServe("0.0.0.0:"+port, r)
 	return nil
