@@ -15,7 +15,7 @@ import (
 
 func GetAllUsers(db *sql.DB) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		rows, err := db.Query("SELECT id,name,email,password,created_at,updated_at FROM public.users")
+		rows, err := db.Query("SELECT id,name, username,email,password,created_at,updated_at FROM public.users")
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
@@ -29,7 +29,7 @@ func GetAllUsers(db *sql.DB) http.HandlerFunc {
 		var users []models.User
 		for rows.Next() {
 			var user models.User
-			err := rows.Scan(&user.Id, &user.Name, &user.Email, &user.Password, &user.Created_at, &user.Updated_at)
+			err := rows.Scan(&user.Id, &user.Name, &user.Username, &user.Email, &user.Password, &user.Created_at, &user.Updated_at)
 			if err != nil {
 				http.Error(w, err.Error(), http.StatusInternalServerError)
 				return
@@ -56,9 +56,9 @@ func GetUserByID(db *sql.DB) http.HandlerFunc {
 			JSONError(w, err.Error(), http.StatusBadRequest)
 			return
 		}
-		row := db.QueryRow("SELECT id, name, email, password, created_at, updated_at FROM public.users WHERE id=$1", id)
+		row := db.QueryRow("SELECT id, name, username, email, password, created_at, updated_at FROM public.users WHERE id=$1", id)
 		var user models.User
-		switch err := row.Scan(&user.Id, &user.Name, &user.Email, &user.Password, &user.Created_at, &user.Updated_at); err {
+		switch err := row.Scan(&user.Id, &user.Name, &user.Username, &user.Email, &user.Password, &user.Created_at, &user.Updated_at); err {
 		case sql.ErrNoRows:
 			JSONError(w, "No rows returned", http.StatusFound)
 		case nil:
@@ -81,9 +81,9 @@ func GetUserBySession(db *sql.DB) http.HandlerFunc {
 			JSONError(w, "session id not available", 500)
 			return
 		}
-		row := db.QueryRow("SELECT u.id, u.name, u.email, u.password, u.created_at, u.updated_at FROM public.users u INNER JOIN public.sessions s ON u.id = s.userid WHERE s.sessionid=$1", sessionid)
+		row := db.QueryRow("SELECT u.id, u.name, u.username, u.email, u.password, u.created_at, u.updated_at FROM public.users u INNER JOIN public.sessions s ON u.id = s.userid WHERE s.sessionid=$1", sessionid)
 		var user models.User
-		switch err := row.Scan(&user.Id, &user.Name, &user.Email, &user.Password, &user.Created_at, &user.Updated_at); err {
+		switch err := row.Scan(&user.Id, &user.Name, &user.Username, &user.Email, &user.Password, &user.Created_at, &user.Updated_at); err {
 		case sql.ErrNoRows:
 			JSONError(w, "no rows", 500)
 		case nil:
@@ -106,10 +106,10 @@ func GetUserBySession(db *sql.DB) http.HandlerFunc {
 func GetUserByEmail(db *sql.DB) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		email := chi.URLParam(r, "email")
-		row := db.QueryRow("SELECT id, name, email, password, created_at, updated_at FROM public.users WHERE email=$1", email)
+		row := db.QueryRow("SELECT id, name, username, email, password, created_at, updated_at FROM public.users WHERE email=$1", email)
 		fmt.Println(row)
 		var user models.User
-		switch err := row.Scan(&user.Id, &user.Name, &user.Email, &user.Password, &user.Created_at, &user.Updated_at); err {
+		switch err := row.Scan(&user.Id, &user.Name, &user.Username, &user.Email, &user.Password, &user.Created_at, &user.Updated_at); err {
 		case sql.ErrNoRows:
 			JSONError(w, "No users with that email", 404)
 		case nil:
@@ -138,7 +138,7 @@ func CreateUser(db *sql.DB) http.HandlerFunc {
 			return
 		}
 		var id int
-		err = db.QueryRow(`INSERT INTO public.users (name, email, password, created_at, updated_at) VALUES($1,$2,$3,$4,$5) RETURNING id`, user.Name, user.Email, user.Password, time.Now(), time.Now()).Scan(&id)
+		err = db.QueryRow(`INSERT INTO public.users (name, username, email, password, created_at, updated_at) VALUES($1,$2,$3,$4,$5,$6) RETURNING id`, user.Name, user.Username, user.Email, user.Password, time.Now(), time.Now()).Scan(&id)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
@@ -159,13 +159,13 @@ func UpdateUser(db *sql.DB) http.HandlerFunc {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
-		row := db.QueryRow("SELECT id, name, email, password FROM public.users WHERE id=$1", user.Id)
+		row := db.QueryRow("SELECT id, name, username, email, password FROM public.users WHERE id=$1", user.Id)
 		var foundUser models.User
-		switch err := row.Scan(&foundUser.Id, &foundUser.Name, &foundUser.Email, &foundUser.Password); err {
+		switch err := row.Scan(&foundUser.Id, &foundUser.Name, &foundUser.Username, &foundUser.Email, &foundUser.Password); err {
 		case sql.ErrNoRows:
 			JSONError(w, "no user exists", http.StatusBadRequest)
 		case nil:
-			row := db.QueryRow("UPDATE public.users SET name = $1, password = $2, email=$3 WHERE id = $4", user.Name, user.Password, user.Email, user.Id)
+			row := db.QueryRow("UPDATE public.users SET name = $1, username = $2, password = $3, email=$4 WHERE id = $4", user.Name, user.Username, user.Password, user.Email, user.Id)
 			if row.Err() != nil {
 				JSONError(w, err.Error(), http.StatusBadRequest)
 			}
