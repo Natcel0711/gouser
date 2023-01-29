@@ -4,7 +4,6 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
-	"log"
 	"net/http"
 	"strconv"
 	"time"
@@ -82,7 +81,6 @@ func GetUserBySession(db *sql.DB) http.HandlerFunc {
 			JSONError(w, "session id not available", 500)
 			return
 		}
-		log.Println("SESSIONS:", sessionid)
 		row := db.QueryRow("SELECT u.id, u.name, u.username, u.email, u.password, u.created_at, u.updated_at FROM public.users u INNER JOIN public.sessions s ON u.id = s.userid WHERE s.sessionid=$1", sessionid)
 		var user models.User
 		switch err := row.Scan(&user.Id, &user.Name, &user.Username, &user.Email, &user.Password, &user.Created_at, &user.Updated_at); err {
